@@ -20,23 +20,7 @@ import {
 } from '../../src/utils/formatters';
 import { Workout } from '../../src/types';
 
-// react-native-maps is native-only — conditionally import on native only
-let MapView: React.ComponentType<any> | null = null;
-let Polyline: React.ComponentType<any> | null = null;
-let Marker: React.ComponentType<any> | null = null;
-if (Platform.OS !== 'web') {
-  try {
-    const maps = require('react-native-maps');
-    MapView = maps.MapView;
-    Polyline = maps.Polyline;
-    Marker = maps.Marker;
-  } catch (e) {
-    // Not available
-  }
-}
-
 const { width } = Dimensions.get('window');
-const MAP_HEIGHT = 280;
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,77 +50,14 @@ export default function WorkoutDetailScreen() {
     );
   }
 
-  // Calculate map region from route
   const route = workout.route || [];
-  const initialRegion = route.length > 0
-    ? {
-        latitude: route[0].latitude,
-        longitude: route[0].longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
-    : {
-        latitude: -23.55,
-        longitude: -46.63,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
 
   return (
     <View style={styles.container}>
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        {MapView ? (
-          <MapView
-            style={styles.map}
-            initialRegion={initialRegion}
-            showsUserLocation={false}
-            showsMyLocationButton={false}
-            mapType="standard"
-          >
-            {route.length > 1 && (
-              <Polyline
-                coordinates={route}
-                strokeColor="#00D4AA"
-                strokeWidth={4}
-                lineCap="round"
-                lineJoin="round"
-              />
-            )}
-            {route.length > 0 && (
-              <>
-                <Marker
-                  coordinate={route[0]}
-                  title="Start"
-                  pinColor="#00D4AA"
-                />
-                {route.length > 1 && (
-                  <Marker
-                    coordinate={route[route.length - 1]}
-                    title="Finish"
-                    pinColor="#FF4757"
-                  />
-                )}
-              </>
-            )}
-          </MapView>
-        ) : (
-          <View style={styles.mapPlaceholder}>
-            <Text style={styles.mapPlaceholderText}>Map view</Text>
-            {route.length > 0 && (
-              <Text style={styles.mapRouteInfo}>
-                {route.length} route points recorded
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Back button overlay */}
-        <TouchableOpacity
-          style={styles.mapBackBtn}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.mapBackText}>← Back</Text>
+      {/* Header with back */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>← Back</Text>
         </TouchableOpacity>
       </View>
 
@@ -184,7 +105,7 @@ export default function WorkoutDetailScreen() {
 
         {/* Route info */}
         <View style={styles.routeInfo}>
-          <Text style={styles.routeInfoTitle}>Route</Text>
+          <Text style={styles.routeInfoTitle}>📍 Route Details</Text>
           <View style={styles.routeInfoRow}>
             <Text style={styles.routeInfoLabel}>Start point</Text>
             <Text style={styles.routeInfoValue}>
@@ -205,7 +126,38 @@ export default function WorkoutDetailScreen() {
             <Text style={styles.routeInfoLabel}>Route points</Text>
             <Text style={styles.routeInfoValue}>{route.length} recorded</Text>
           </View>
+          <View style={styles.routeInfoRow}>
+            <Text style={styles.routeInfoLabel}>Total distance</Text>
+            <Text style={styles.routeInfoValue}>{formatDistanceKm(workout.distance)} km</Text>
+          </View>
+          <View style={styles.routeInfoRow}>
+            <Text style={styles.routeInfoLabel}>Avg speed</Text>
+            <Text style={styles.routeInfoValue}>{formatSpeedMps(workout.avgSpeed)} mph</Text>
+          </View>
         </View>
+
+        {/* Raw route coordinates */}
+        {route.length > 0 && (
+          <View style={styles.routeInfo}>
+            <Text style={styles.routeInfoTitle}>🗺 Route Coordinates</Text>
+            <Text style={styles.coordNote}>
+              {route.length} GPS points recorded during this workout
+            </Text>
+            {route.slice(0, 10).map((point, i) => (
+              <View key={i} style={styles.coordRow}>
+                <Text style={styles.coordIndex}>#{i + 1}</Text>
+                <Text style={styles.coordText}>
+                  {point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}
+                </Text>
+              </View>
+            ))}
+            {route.length > 10 && (
+              <Text style={styles.coordNote}>
+                ...and {route.length - 10} more points
+              </Text>
+            )}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -217,60 +169,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0D0D',
   },
   header: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 50,
-    left: 20,
-    zIndex: 10,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingHorizontal: 24,
+    paddingBottom: 10,
   },
   backBtn: {
-    color: '#FFFFFF',
+    color: '#00D4AA',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  mapContainer: {
-    width: '100%',
-    height: MAP_HEIGHT,
-    backgroundColor: '#1A1A1A',
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  mapPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapPlaceholderText: {
-    color: '#666666',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  mapRouteInfo: {
-    color: '#444444',
-    fontSize: 12,
-    marginTop: 8,
-  },
-  mapBackBtn: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 40,
-    left: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  mapBackText: {
-    color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '600',
   },
   statsContainer: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
   },
   statsHeader: {
     marginBottom: 20,
@@ -346,7 +256,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 14,
     padding: 18,
-    marginBottom: 40,
+    marginBottom: 16,
   },
   routeInfoTitle: {
     fontSize: 15,
@@ -369,6 +279,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  coordNote: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 12,
+  },
+  coordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  coordIndex: {
+    fontSize: 11,
+    color: '#00D4AA',
+    fontWeight: '700',
+    width: 30,
+  },
+  coordText: {
+    fontSize: 11,
+    color: '#888888',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   emptyState: {
     flex: 1,
