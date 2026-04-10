@@ -22,91 +22,14 @@ import { Workout } from '../../src/types';
 
 const { width } = Dimensions.get('window');
 
-// ─── Native map components — only resolved on native platforms ──────────────
-// Platform.select() tells Metro to NOT bundle this for web
-const NativeMapView = Platform.select({
-  native: () => (require('react-native-maps') as any).MapView,
-  default: null,
-}) as React.ComponentType<any> | null;
-
-const NativePolyline = Platform.select({
-  native: () => (require('react-native-maps') as any).Polyline,
-  default: null,
-}) as React.ComponentType<any> | null;
-
-const NativeMarker = Platform.select({
-  native: () => (require('react-native-maps') as any).Marker,
-  default: null,
-}) as React.ComponentType<any> | null;
-
-// ─── Native Map (iOS/Android only) ─────────────────────────────────────────
-function NativeWorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
-  if (route.length === 0) {
-    return (
-      <View style={styles.mapFallback}>
-        <Text style={styles.mapFallbackText}>No GPS data recorded</Text>
-      </View>
-    );
-  }
-
-  const initialRegion = {
-    latitude: route[0].latitude,
-    longitude: route[0].longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  };
-
-  return (
-    <View style={styles.mapContainer}>
-      <NativeMapView
-        style={styles.map}
-        initialRegion={initialRegion}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        mapType="standard"
-        scrollEnabled={true}
-        zoomEnabled={true}
-      >
-        {route.length > 1 && (
-          <NativePolyline
-            coordinates={route}
-            strokeColor="#00D4AA"
-            strokeWidth={4}
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
-        {route.length > 0 && (
-          <>
-            <NativeMarker
-              coordinate={route[0]}
-              title="Start"
-              pinColor="#00D4AA"
-            />
-            {route.length > 1 && (
-              <NativeMarker
-                coordinate={route[route.length - 1]}
-                title="Finish"
-                pinColor="#FF4757"
-              />
-            )}
-          </>
-        )}
-      </NativeMapView>
-      <View style={styles.mapBadge}>
-        <Text style={styles.mapBadgeText}>{route.length} GPS points</Text>
-      </View>
-    </View>
-  );
-}
-
-// ─── Web fallback: visual route trace ───────────────────────────────────────
+// ─── Route visualization (works on all platforms including web) ───────────────
 function RouteViz({ route }: { route: { latitude: number; longitude: number }[] }) {
   if (route.length === 0) {
     return (
       <View style={styles.routeViz}>
-        <View style={styles.mapFallback}>
-          <Text style={styles.mapFallbackText}>No GPS data recorded</Text>
+        <View style={styles.mapPlaceholder}>
+          <Text style={styles.mapPlaceholderIcon}>📍</Text>
+          <Text style={styles.mapPlaceholderText}>No GPS data recorded</Text>
         </View>
       </View>
     );
@@ -114,6 +37,17 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
 
   const start = route[0];
   const end = route[route.length - 1];
+  const midIdx = Math.floor(route.length / 2);
+  const mid = route[midIdx];
+
+  // Calculate total distance from route
+  let totalDist = 0;
+  for (let i = 1; i < route.length; i++) {
+    const dx = (route[i].latitude - route[i - 1].latitude) * (Math.PI / 180) * 6371000;
+    const dy = (route[i].longitude - route[i - 1].longitude) * (Math.PI / 180) * 6371000 *
+      Math.cos(route[i - 1].latitude * Math.PI / 180);
+    totalDist += Math.sqrt(dx * dx + dy * dy);
+  }
 
   return (
     <View style={styles.routeViz}>
@@ -122,60 +56,61 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
         <Text style={styles.routeVizCount}>{route.length} GPS points</Text>
       </View>
 
-      <View style={styles.routeLine}>
-        <View style={styles.routePointStart}>
-          <Text style={styles.routePointLabel}>START</Text>
-          <Text style={styles.routePointCoords}>
-            {start.latitude.toFixed(5)}, {start.longitude.toFixed(5)}
+      {/* Visual route bar */}
+      <View style={styles.routeBar}>
+        <View style={styles.routeBarStart}>
+          <Text style={styles.routeBarLabel}>START</Text>
+          <Text style={styles.routeBarCoords}>
+            {start.latitude.toFixed(4)}, {start.longitude.toFixed(4)}
           </Text>
         </View>
-        <View style={styles.routeLineBar}>
-          <View style={styles.routeLineFill} />
-          <View style={styles.routeLineDot} />
+        <View style={styles.routeBarLine}>
+          <View style={styles.routeBarFill} />
+          <View style={styles.routeBarDot} />
         </View>
-        <View style={styles.routePointEnd}>
-          <Text style={styles.routePointLabel}>FINISH</Text>
-          <Text style={styles.routePointCoords}>
-            {end.latitude.toFixed(5)}, {end.longitude.toFixed(5)}
+        <View style={styles.routeBarEnd}>
+          <Text style={styles.routeBarLabel}>END</Text>
+          <Text style={styles.routeBarCoords}>
+            {end.latitude.toFixed(4)}, {end.longitude.toFixed(4)}
           </Text>
         </View>
       </View>
 
-      {route.length > 2 && (
-        <View style={styles.midPoint}>
-          <Text style={styles.midPointLabel}>Mid point</Text>
-          <Text style={styles.midPointCoords}>
-            {route[Math.floor(route.length / 2)].latitude.toFixed(5)},{' '}
-            {route[Math.floor(route.length / 2)].longitude.toFixed(5)}
-          </Text>
+      {/* Stats from route */}
+      <View style={styles.routeStats}>
+        <View style={styles.routeStatItem}>
+          <Text style={styles.routeStatValue}>{totalDist.toFixed(0)}m</Text>
+          <Text style={styles.routeStatLabel}>route length</Text>
         </View>
-      )}
+        <View style={styles.routeStatItem}>
+          <Text style={styles.routeStatValue}>{route.length}</Text>
+          <Text style={styles.routeStatLabel}>GPS points</Text>
+        </View>
+        <View style={styles.routeStatItem}>
+          <Text style={styles.routeStatValue}>{(totalDist / route.length).toFixed(1)}m</Text>
+          <Text style={styles.routeStatLabel}>avg spacing</Text>
+        </View>
+      </View>
 
+      {/* All coordinates */}
       <View style={styles.coordList}>
-        {route.slice(0, 15).map((pt, i) => (
+        <Text style={styles.coordListTitle}>All Coordinates</Text>
+        {route.slice(0, 20).map((pt, i) => (
           <View key={i} style={styles.coordRow}>
-            <Text style={styles.coordIndex}>#{i + 1}</Text>
+            <Text style={styles.coordIndex}>#{String(i + 1).padStart(2, '0')}</Text>
             <Text style={styles.coordText}>
               {pt.latitude.toFixed(6)}, {pt.longitude.toFixed(6)}
             </Text>
           </View>
         ))}
-        {route.length > 15 && (
+        {route.length > 20 && (
           <Text style={styles.coordMore}>
-            ...and {route.length - 15} more coordinates
+            ...and {route.length - 20} more coordinates
           </Text>
         )}
       </View>
     </View>
   );
-}
-
-// ─── Unified Map component — uses native on iOS/Android, web fallback otherwise ─
-function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    return <NativeWorkoutMap route={route} />;
-  }
-  return <RouteViz route={route} />;
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -296,8 +231,8 @@ export default function WorkoutDetailScreen() {
           </View>
         </View>
 
-        {/* Map or web fallback */}
-        <WorkoutMap route={route} />
+        {/* Route visualization */}
+        <RouteViz route={route} />
 
         {/* Detailed metrics */}
         <View style={styles.metricsCard}>
@@ -438,46 +373,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // Map native
-  mapContainer: {
-    height: 260,
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 20,
-    backgroundColor: '#14141C',
-    borderWidth: 1,
-    borderColor: '#1E1E2C',
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  mapBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  mapBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  mapFallback: {
-    height: 200,
-    backgroundColor: '#14141C',
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  mapFallbackText: {
-    color: '#5A5A6E',
-    fontSize: 14,
-  },
   // Route viz
   routeViz: {
     backgroundColor: '#14141C',
@@ -506,49 +401,62 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 20,
   },
-  routeLine: {
+  mapPlaceholder: {
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPlaceholderIcon: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  mapPlaceholderText: {
+    fontSize: 14,
+    color: '#5A5A6E',
+  },
+  routeBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  routePointStart: {
+  routeBarStart: {
     flex: 1,
     alignItems: 'flex-start',
   },
-  routePointEnd: {
+  routeBarEnd: {
     flex: 1,
     alignItems: 'flex-end',
   },
-  routePointLabel: {
+  routeBarLabel: {
     fontSize: 9,
     fontWeight: '700',
     color: '#00D4AA',
     letterSpacing: 1,
     marginBottom: 4,
   },
-  routePointCoords: {
+  routeBarCoords: {
     fontSize: 10,
     color: '#5A5A6E',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  routeLineBar: {
-    width: 40,
+  routeBarLine: {
+    width: 50,
     height: 2,
     backgroundColor: '#1E1E2C',
     marginHorizontal: 8,
     position: 'relative',
     justifyContent: 'center',
   },
-  routeLineFill: {
+  routeBarFill: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: '60%',
+    width: '70%',
     backgroundColor: '#00D4AA',
     borderRadius: 1,
   },
-  routeLineDot: {
+  routeBarDot: {
     position: 'absolute',
     right: 0,
     top: -3,
@@ -557,24 +465,37 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#FF4757',
   },
-  midPoint: {
+  routeStats: {
+    flexDirection: 'row',
+    backgroundColor: '#1E1E2C',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  routeStatItem: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 12,
   },
-  midPointLabel: {
-    fontSize: 9,
-    color: '#5A5A6E',
-    marginBottom: 2,
+  routeStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  midPointCoords: {
+  routeStatLabel: {
     fontSize: 10,
     color: '#5A5A6E',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginTop: 2,
   },
   coordList: {
     borderTopWidth: 1,
     borderTopColor: '#1E1E2C',
     paddingTop: 12,
+  },
+  coordListTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 10,
   },
   coordRow: {
     flexDirection: 'row',
