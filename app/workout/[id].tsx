@@ -22,17 +22,25 @@ import { Workout } from '../../src/types';
 
 const { width } = Dimensions.get('window');
 
-// ─── Map Component (native only) ───────────────────────────────────────────
-function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
-  if (Platform.OS === 'web') {
-    return <RouteViz route={route} />;
-  }
+// ─── Native map components — only resolved on native platforms ──────────────
+// Platform.select() tells Metro to NOT bundle this for web
+const NativeMapView = Platform.select({
+  native: () => (require('react-native-maps') as any).MapView,
+  default: null,
+}) as React.ComponentType<any> | null;
 
-  // Dynamic require — only executed on native, Metro won't bundle this for web
-  const MapView = require('react-native-maps').MapView;
-  const Polyline = require('react-native-maps').Polyline;
-  const Marker = require('react-native-maps').Marker;
+const NativePolyline = Platform.select({
+  native: () => (require('react-native-maps') as any).Polyline,
+  default: null,
+}) as React.ComponentType<any> | null;
 
+const NativeMarker = Platform.select({
+  native: () => (require('react-native-maps') as any).Marker,
+  default: null,
+}) as React.ComponentType<any> | null;
+
+// ─── Native Map (iOS/Android only) ─────────────────────────────────────────
+function NativeWorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
   if (route.length === 0) {
     return (
       <View style={styles.mapFallback}>
@@ -50,7 +58,7 @@ function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[
 
   return (
     <View style={styles.mapContainer}>
-      <MapView
+      <NativeMapView
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation={false}
@@ -60,7 +68,7 @@ function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[
         zoomEnabled={true}
       >
         {route.length > 1 && (
-          <Polyline
+          <NativePolyline
             coordinates={route}
             strokeColor="#00D4AA"
             strokeWidth={4}
@@ -70,13 +78,13 @@ function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[
         )}
         {route.length > 0 && (
           <>
-            <Marker
+            <NativeMarker
               coordinate={route[0]}
               title="Start"
               pinColor="#00D4AA"
             />
             {route.length > 1 && (
-              <Marker
+              <NativeMarker
                 coordinate={route[route.length - 1]}
                 title="Finish"
                 pinColor="#FF4757"
@@ -84,9 +92,7 @@ function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[
             )}
           </>
         )}
-      </MapView>
-
-      {/* Route badge */}
+      </NativeMapView>
       <View style={styles.mapBadge}>
         <Text style={styles.mapBadgeText}>{route.length} GPS points</Text>
       </View>
@@ -96,7 +102,15 @@ function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[
 
 // ─── Web fallback: visual route trace ───────────────────────────────────────
 function RouteViz({ route }: { route: { latitude: number; longitude: number }[] }) {
-  if (route.length === 0) return null;
+  if (route.length === 0) {
+    return (
+      <View style={styles.routeViz}>
+        <View style={styles.mapFallback}>
+          <Text style={styles.mapFallbackText}>No GPS data recorded</Text>
+        </View>
+      </View>
+    );
+  }
 
   const start = route[0];
   const end = route[route.length - 1];
@@ -154,6 +168,14 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
       </View>
     </View>
   );
+}
+
+// ─── Unified Map component — uses native on iOS/Android, web fallback otherwise ─
+function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    return <NativeWorkoutMap route={route} />;
+  }
+  return <RouteViz route={route} />;
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -274,7 +296,7 @@ export default function WorkoutDetailScreen() {
           </View>
         </View>
 
-        {/* Map or route viz */}
+        {/* Map or web fallback */}
         <WorkoutMap route={route} />
 
         {/* Detailed metrics */}
@@ -416,7 +438,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // Map
+  // Map native
   mapContainer: {
     height: 260,
     borderRadius: 18,
@@ -456,7 +478,7 @@ const styles = StyleSheet.create({
     color: '#5A5A6E',
     fontSize: 14,
   },
-  // Route viz (web fallback)
+  // Route viz
   routeViz: {
     backgroundColor: '#14141C',
     borderRadius: 18,
