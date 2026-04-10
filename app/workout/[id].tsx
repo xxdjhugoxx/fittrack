@@ -9,7 +9,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MapView, { Polyline, Marker } from 'react-native-maps';
 import { useWorkout } from '../../src/contexts/WorkoutContext';
 import {
   formatDuration,
@@ -21,8 +20,22 @@ import {
 } from '../../src/utils/formatters';
 import { Workout } from '../../src/types';
 
-const { width } = Dimensions.get('window');
+// react-native-maps is native-only — conditionally import on native only
+let MapView: React.ComponentType<any> | null = null;
+let Polyline: React.ComponentType<any> | null = null;
+let Marker: React.ComponentType<any> | null = null;
+if (Platform.OS !== 'web') {
+  try {
+    const maps = require('react-native-maps');
+    MapView = maps.MapView;
+    Polyline = maps.Polyline;
+    Marker = maps.Marker;
+  } catch (e) {
+    // Not available
+  }
+}
 
+const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 280;
 
 export default function WorkoutDetailScreen() {
@@ -73,39 +86,50 @@ export default function WorkoutDetailScreen() {
     <View style={styles.container}>
       {/* Map */}
       <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          initialRegion={initialRegion}
-          showsUserLocation={false}
-          showsMyLocationButton={false}
-          mapType={Platform.OS === 'ios' ? 'standard' : 'standard'}
-        >
-          {route.length > 1 && (
-            <Polyline
-              coordinates={route}
-              strokeColor="#00D4AA"
-              strokeWidth={4}
-              lineCap="round"
-              lineJoin="round"
-            />
-          )}
-          {route.length > 0 && (
-            <>
-              <Marker
-                coordinate={route[0]}
-                title="Start"
-                pinColor="#00D4AA"
+        {MapView ? (
+          <MapView
+            style={styles.map}
+            initialRegion={initialRegion}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            mapType="standard"
+          >
+            {route.length > 1 && (
+              <Polyline
+                coordinates={route}
+                strokeColor="#00D4AA"
+                strokeWidth={4}
+                lineCap="round"
+                lineJoin="round"
               />
-              {route.length > 1 && (
+            )}
+            {route.length > 0 && (
+              <>
                 <Marker
-                  coordinate={route[route.length - 1]}
-                  title="Finish"
-                  pinColor="#FF4757"
+                  coordinate={route[0]}
+                  title="Start"
+                  pinColor="#00D4AA"
                 />
-              )}
-            </>
-          )}
-        </MapView>
+                {route.length > 1 && (
+                  <Marker
+                    coordinate={route[route.length - 1]}
+                    title="Finish"
+                    pinColor="#FF4757"
+                  />
+                )}
+              </>
+            )}
+          </MapView>
+        ) : (
+          <View style={styles.mapPlaceholder}>
+            <Text style={styles.mapPlaceholderText}>Map view</Text>
+            {route.length > 0 && (
+              <Text style={styles.mapRouteInfo}>
+                {route.length} route points recorded
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Back button overlay */}
         <TouchableOpacity
@@ -211,6 +235,23 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  mapPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPlaceholderText: {
+    color: '#666666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mapRouteInfo: {
+    color: '#444444',
+    fontSize: 12,
+    marginTop: 8,
   },
   mapBackBtn: {
     position: 'absolute',
