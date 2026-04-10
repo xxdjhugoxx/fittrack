@@ -10,20 +10,17 @@ export default function RootLayout() {
         <StatusBar style="light" />
         <Stack
           screenOptions={{
-            headerStyle: { backgroundColor: '#0D0D0D' },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '700' },
-            contentStyle: { backgroundColor: '#0D0D0D' },
+            headerShown: false,
+            contentStyle: { backgroundColor: '#090910' },
             animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen name="tabs" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="workout/[id]"
             options={{
-              title: 'Workout Details',
-              presentation: 'modal',
-              headerStyle: { backgroundColor: '#0D0D0D' },
+              presentation: 'card',
+              animation: 'slide_from_right',
             }}
           />
         </Stack>

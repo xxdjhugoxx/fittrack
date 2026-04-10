@@ -14,48 +14,75 @@ import {
   formatDuration,
   formatPace,
   formatDistanceKm,
-  formatDistanceMeters,
   formatDate,
 } from '../../src/utils/formatters';
 import { Workout } from '../../src/types';
 
-function WorkoutItem({ workout, onPress, onDelete }: { workout: Workout; onPress: () => void; onDelete: () => void }) {
+function WorkoutCard({ workout, onPress, onDelete }: { workout: Workout; onPress: () => void; onDelete: () => void }) {
+  const km = workout.distance / 1000;
+  const miles = workout.distance / 1609.344;
+
   return (
-    <TouchableOpacity style={styles.workoutItem} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.workoutItemLeft}>
-        <Text style={styles.workoutDate}>{formatDate(workout.date)}</Text>
-        <View style={styles.workoutTags}>
-          <View style={[styles.tag, workout.isRunning ? styles.tagRun : styles.tagWalk]}>
-            <Text style={styles.tagText}>{workout.isRunning ? '🏃 Running' : '🚶 Walking'}</Text>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+      {/* Left accent bar */}
+      <View style={[styles.accentBar, workout.isRunning ? styles.accentRun : styles.accentWalk]} />
+
+      {/* Main content */}
+      <View style={styles.cardContent}>
+        <View style={styles.cardTop}>
+          <View style={styles.cardLeft}>
+            <Text style={styles.activityIcon}>{workout.isRunning ? '🏃' : '🚶'}</Text>
+            <View>
+              <Text style={styles.activityType}>{workout.isRunning ? 'Running' : 'Walking'}</Text>
+              <Text style={styles.dateText}>{formatDate(workout.date)}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.moreBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              Alert.alert('Delete Workout', 'Are you sure?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: onDelete },
+              ]);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.moreBtnText}>•••</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{km.toFixed(2)}</Text>
+            <Text style={styles.statLabel}>km</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatDuration(workout.duration)}</Text>
+            <Text style={styles.statLabel}>time</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatPace(workout.avgPace)}</Text>
+            <Text style={styles.statLabel}>/km</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{miles.toFixed(2)}</Text>
+            <Text style={styles.statLabel}>mi</Text>
           </View>
         </View>
+
+        {/* Route points */}
+        {workout.route.length > 0 && (
+          <View style={styles.routeChip}>
+            <View style={styles.routeDot} />
+            <Text style={styles.routeText}>{workout.route.length} GPS points</Text>
+          </View>
+        )}
       </View>
-      <View style={styles.workoutItemRight}>
-        <View style={styles.workoutStat}>
-          <Text style={styles.workoutStatValue}>{formatDistanceKm(workout.distance)}</Text>
-          <Text style={styles.workoutStatLabel}>km</Text>
-        </View>
-        <View style={styles.workoutStat}>
-          <Text style={styles.workoutStatValue}>{formatDuration(workout.duration)}</Text>
-          <Text style={styles.workoutStatLabel}>time</Text>
-        </View>
-        <View style={styles.workoutStat}>
-          <Text style={styles.workoutStatValue}>{formatPace(workout.avgPace)}</Text>
-          <Text style={styles.workoutStatLabel}>/km</Text>
-        </View>
-      </View>
-      <TouchableOpacity
-        style={styles.deleteBtn}
-        onPress={(e) => {
-          e.stopPropagation();
-          Alert.alert('Delete Workout', 'Are you sure you want to delete this workout?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: onDelete },
-          ]);
-        }}
-      >
-        <Text style={styles.deleteBtnText}>✕</Text>
-      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -64,18 +91,43 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { workouts, deleteWorkout } = useWorkout();
 
+  const totalDistance = workouts.reduce((sum, w) => sum + w.distance, 0);
+  const totalWorkouts = workouts.length;
+  const totalTime = workouts.reduce((sum, w) => sum + w.duration, 0);
+
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Workout History</Text>
+        <Text style={styles.headerTitle}>History</Text>
         <Text style={styles.headerSubtitle}>
-          {workouts.length} {workouts.length === 1 ? 'workout' : 'workouts'} recorded
+          {totalWorkouts} {totalWorkouts === 1 ? 'workout' : 'workouts'} recorded
         </Text>
       </View>
 
-      {workouts.length === 0 ? (
+      {/* Summary bar */}
+      {totalWorkouts > 0 && (
+        <View style={styles.summaryBar}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{(totalDistance / 1000).toFixed(1)}</Text>
+            <Text style={styles.summaryLabel}>km total</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{formatDuration(totalTime)}</Text>
+            <Text style={styles.summaryLabel}>time total</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{totalWorkouts}</Text>
+            <Text style={styles.summaryLabel}>{totalWorkouts === 1 ? 'workout' : 'workouts'}</Text>
+          </View>
+        </View>
+      )}
+
+      {totalWorkouts === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📋</Text>
+          <Text style={styles.emptyEmoji}>📋</Text>
           <Text style={styles.emptyTitle}>No workouts yet</Text>
           <Text style={styles.emptySubtitle}>
             Complete your first workout and it will appear here
@@ -86,7 +138,7 @@ export default function HistoryScreen() {
           data={workouts}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <WorkoutItem
+            <WorkoutCard
               workout={item}
               onPress={() => router.push(`/workout/${item.id}`)}
               onDelete={() => deleteWorkout(item.id)}
@@ -104,95 +156,156 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: '#090910',
   },
   header: {
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 24,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1,
+    letterSpacing: -1.5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#666666',
-    marginTop: 4,
+    color: '#5A5A6E',
+    marginTop: 2,
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    backgroundColor: '#14141C',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1E1E2C',
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#00D4AA',
+  },
+  summaryLabel: {
+    fontSize: 10,
+    color: '#5A5A6E',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryDivider: {
+    width: 1,
+    backgroundColor: '#1E1E2C',
   },
   list: {
     paddingHorizontal: 24,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
-  workoutItem: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 16,
-    padding: 18,
+  card: {
+    backgroundColor: '#14141C',
+    borderRadius: 18,
+    overflow: 'hidden',
     flexDirection: 'row',
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1E1E2C',
   },
-  workoutItemLeft: {
+  accentBar: {
+    width: 4,
+  },
+  accentRun: {
+    backgroundColor: '#00D4AA',
+  },
+  accentWalk: {
+    backgroundColor: '#FF9F43',
+  },
+  cardContent: {
     flex: 1,
+    padding: 16,
   },
-  workoutDate: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 6,
-  },
-  workoutTags: {
+  cardTop: {
     flexDirection: 'row',
-    gap: 6,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  tagRun: {
-    backgroundColor: 'rgba(0, 212, 170, 0.15)',
-  },
-  tagWalk: {
-    backgroundColor: 'rgba(255, 165, 0, 0.15)',
-  },
-  tagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  workoutItemRight: {
+  cardLeft: {
     flexDirection: 'row',
-    gap: 16,
-    marginRight: 12,
-  },
-  workoutStat: {
     alignItems: 'center',
+    gap: 10,
   },
-  workoutStatValue: {
+  activityIcon: {
+    fontSize: 22,
+  },
+  activityType: {
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  workoutStatLabel: {
+  dateText: {
+    fontSize: 12,
+    color: '#5A5A6E',
+    marginTop: 2,
+  },
+  moreBtn: {
+    padding: 4,
+  },
+  moreBtnText: {
+    color: '#3A3A4E',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  statLabel: {
     fontSize: 10,
-    color: '#666666',
+    color: '#5A5A6E',
     marginTop: 2,
     textTransform: 'uppercase',
   },
-  deleteBtn: {
-    width: 28,
+  statDivider: {
+    width: 1,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: '#2A2A2A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#1E1E2C',
   },
-  deleteBtnText: {
-    color: '#666666',
-    fontSize: 12,
-    fontWeight: '700',
+  routeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+    backgroundColor: '#1E1E2C',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  routeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#00D4AA',
+  },
+  routeText: {
+    fontSize: 10,
+    color: '#5A5A6E',
+    fontWeight: '500',
   },
   separator: {
     height: 12,
@@ -203,19 +316,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 100,
   },
-  emptyIcon: {
+  emptyEmoji: {
     fontSize: 56,
     marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#666666',
+    color: '#5A5A6E',
     textAlign: 'center',
     maxWidth: 240,
     lineHeight: 20,

@@ -8,15 +8,16 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
     "splash": {
-      "backgroundColor": "#0D0D0D"
+      "backgroundColor": "#090910",
+      "resizeMode": "cover"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fittrack.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "FitTrack needs your location to track your workout route.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "FitTrack needs background location to keep tracking your workout even when the screen is off.",
-        "NSLocationAlwaysUsageDescription": "FitTrack needs background location to keep tracking your workout even when the screen is off.",
+        "NSLocationWhenInUseUsageDescription": "FitTrack needs your location to track your workout route in real-time.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FitTrack needs background location access to keep tracking your workout when your screen is off.",
+        "NSLocationAlwaysUsageDescription": "FitTrack needs background location to keep tracking your workout when your screen is off.",
         "UIBackgroundModes": ["location", "fetch"]
       }
     },
@@ -32,7 +33,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow FitTrack to use your location to track your workouts.",
+          "locationAlwaysAndWhenInUsePermission": "Allow FitTrack to use your location to track your workouts, even when the app is in the background.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
