@@ -23,7 +23,7 @@ function WorkoutCard({ workout, onPress, onDelete }: { workout: Workout; onPress
   const miles = workout.distance / 1609.344;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7} testID={`workout-card-${workout.id}`}>
       {/* Left accent bar */}
       <View style={[styles.accentBar, workout.isRunning ? styles.accentRun : styles.accentWalk]} />
 
@@ -126,7 +126,7 @@ export default function HistoryScreen() {
       )}
 
       {totalWorkouts === 0 ? (
-        <View style={styles.emptyState}>
+        <View style={styles.emptyState} testID="history-empty">
           <Text style={styles.emptyEmoji}>📋</Text>
           <Text style={styles.emptyTitle}>No workouts yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -136,6 +136,7 @@ export default function HistoryScreen() {
       ) : (
         <FlatList
           data={workouts}
+          testID="history-list"
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <WorkoutCard

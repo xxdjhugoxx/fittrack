@@ -28,35 +28,46 @@ const LocationContext = createContext<LocationContextValue | null>(null);
 export function LocationProvider({ children }: { children: ReactNode }) {
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('undetermined');
   const [backgroundPermission, setBackgroundPermission] = useState<PermissionStatus>('undetermined');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshPermissionStatus = useCallback(async () => {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    const bg = await Location.getBackgroundPermissionsAsync();
-
-    setPermissionStatus(status as PermissionStatus);
-    setBackgroundPermission(bg.status as PermissionStatus);
+    console.log('[LocationContext] Refreshing permission status...');
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      const bg = await Location.getBackgroundPermissionsAsync();
+      console.log('[LocationContext] Foreground:', status, 'Background:', bg.status);
+      setPermissionStatus(status as PermissionStatus);
+      setBackgroundPermission(bg.status as PermissionStatus);
+    } catch (err) {
+      console.error('[LocationContext] Error getting permission status:', err);
+    }
   }, []);
 
   useEffect(() => {
-    refreshPermissionStatus().finally(() => setIsLoading(false));
+    console.log('[LocationContext] Initializing...');
+    refreshPermissionStatus()
+      .finally(() => {
+        console.log('[LocationContext] Initialization complete');
+        setIsLoading(false);
+      });
   }, [refreshPermissionStatus]);
 
-  /**
-   * Request both foreground AND background location permissions
-   * Called when user taps "Start Tracking" for the first time
-   */
   const requestPermission = useCallback(async (): Promise<boolean> => {
+    console.log('[LocationContext] requestPermission called');
     setIsLoading(true);
     try {
       const { foreground, background } = await requestAllLocationPermissions();
+      console.log('[LocationContext] Foreground granted:', foreground.status);
+      console.log('[LocationContext] Background granted:', background.status);
 
       setPermissionStatus(foreground.status as PermissionStatus);
       setBackgroundPermission(background.status as PermissionStatus);
 
-      return foreground.status === 'granted';
+      const granted = foreground.status === 'granted';
+      console.log('[LocationContext] Overall granted:', granted);
+      return granted;
     } catch (err) {
-      console.error('Location permission error:', err);
+      console.error('[LocationContext] Permission request error:', err);
       return false;
     } finally {
       setIsLoading(false);

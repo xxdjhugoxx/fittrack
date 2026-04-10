@@ -8,8 +8,6 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useLocation } from '../../src/contexts/LocationContext';
 
 function PermissionRow({ label, sub, status }: { label: string; sub: string; status: string }) {
@@ -40,7 +38,6 @@ function PermissionRow({ label, sub, status }: { label: string; sub: string; sta
 }
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const { permissionStatus, backgroundPermission, refreshPermissionStatus } = useLocation();
 
   useEffect(() => {
@@ -55,7 +52,7 @@ export default function SettingsScreen() {
     (backgroundPermission === 'granted' || backgroundPermission === 'limited');
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} testID="settings-screen">
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
       </View>
@@ -83,6 +80,7 @@ export default function SettingsScreen() {
           style={[styles.enableButton, hasFullPermission && styles.enableButtonActive]}
           onPress={openSettings}
           activeOpacity={0.8}
+          testID="location-settings-button"
         >
           <Text style={styles.enableButtonIcon}>
             {hasFullPermission ? '✓' : '⚡'}

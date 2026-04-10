@@ -37,7 +37,7 @@ export default function HomeScreen() {
   } = useWorkout();
 
   const [activity, setActivity] = useState<Activity>('running');
-  const [displayDuration, setDisplayDuration] = useState(0);
+  const [displayDuration, setDisplayDuration] = useState<number>(0);
 
   // Pulse animation for the tracking button
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -52,7 +52,6 @@ export default function HomeScreen() {
         setDisplayDuration(Math.floor((Date.now() - start) / 1000));
       }, 1000);
 
-      // Start pulse animation
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -70,7 +69,6 @@ export default function HomeScreen() {
         ])
       ).start();
 
-      // Glow animation
       Animated.loop(
         Animated.timing(glowAnim, {
           toValue: 1,
@@ -92,30 +90,39 @@ export default function HomeScreen() {
   }, [isTracking, currentDuration]);
 
   const handleActivitySelect = useCallback((a: Activity) => {
+    console.log('[FitTrack] Activity selected:', a);
     if (!isTracking) setActivity(a);
   }, [isTracking]);
 
   const handleStartPress = useCallback(async () => {
+    console.log('[FitTrack] Start press — isTracking:', isTracking, 'permission:', permissionStatus);
+
     if (isTracking) {
+      console.log('[FitTrack] Stopping workout...');
       const workout = await stopWorkout(true);
       if (workout) {
+        console.log('[FitTrack] Workout saved, id:', workout.id);
         router.push(`/workout/${workout.id}`);
       }
       return;
     }
 
     if (permissionStatus === 'undetermined') {
+      console.log('[FitTrack] Permission undetermined — showing explanation dialog');
       Alert.alert(
         '📍 Location Access Needed',
         'FitTrack needs your location to record your workout route. We\'ll also ask for background access to keep tracking when your screen is off.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel', onPress: () => console.log('[FitTrack] Permission dialog: cancel') },
           {
             text: 'Enable Location',
             onPress: async () => {
+              console.log('[FitTrack] User confirmed — requesting permission...');
               const granted = await requestPermission();
+              console.log('[FitTrack] Permission result:', granted);
               if (granted) {
                 await startWorkout();
+                console.log('[FitTrack] Workout started');
               } else {
                 Alert.alert(
                   '⚠️ Location Denied',
@@ -131,20 +138,26 @@ export default function HomeScreen() {
     }
 
     if (permissionStatus === 'denied') {
+      console.log('[FitTrack] Permission denied — showing open settings dialog');
       Alert.alert(
         '🔒 Location Access Required',
         'FitTrack needs location access to track your workout. Please enable it in Settings.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel', onPress: () => console.log('[FitTrack] Denied dialog: cancel') },
           {
             text: 'Open Settings',
-            onPress: () => Linking.openSettings(),
+            onPress: () => {
+              console.log('[FitTrack] Opening system settings');
+              Linking.openSettings();
+            },
           },
         ]
       );
       return;
     }
 
+    // Permission granted — start immediately
+    console.log('[FitTrack] Permission already granted — starting workout');
     await startWorkout();
   }, [isTracking, permissionStatus, requestPermission, startWorkout, stopWorkout, router]);
 
@@ -157,10 +170,10 @@ export default function HomeScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="home-screen">
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>FitTrack</Text>
+        <Text style={styles.headerTitle} testID="app-title">FitTrack</Text>
         <Text style={styles.headerSubtitle}>Your personal running coach</Text>
       </View>
 
@@ -171,6 +184,7 @@ export default function HomeScreen() {
             style={[styles.activityBtn, activity === 'running' && styles.activityBtnActive]}
             onPress={() => handleActivitySelect('running')}
             activeOpacity={0.7}
+            testID="activity-running"
           >
             <Text style={styles.activityIcon}>🏃</Text>
             <Text style={[styles.activityLabel, activity === 'running' && styles.activityLabelActive]}>
@@ -181,6 +195,7 @@ export default function HomeScreen() {
             style={[styles.activityBtn, activity === 'walking' && styles.activityBtnActive]}
             onPress={() => handleActivitySelect('walking')}
             activeOpacity={0.7}
+            testID="activity-walking"
           >
             <Text style={styles.activityIcon}>🚶</Text>
             <Text style={[styles.activityLabel, activity === 'walking' && styles.activityLabelActive]}>
@@ -191,12 +206,11 @@ export default function HomeScreen() {
       )}
 
       {/* Live Stats Card */}
-      <View style={styles.statsCard}>
-        {/* Main distance */}
+      <View style={styles.statsCard} testID="stats-card">
         <View style={styles.mainStat}>
           {isTracking ? (
             <>
-              <Text style={styles.mainStatValue}>{km.toFixed(2)}</Text>
+              <Text style={styles.mainStatValue} testID="distance-display">{km.toFixed(2)}</Text>
               <Text style={styles.mainStatUnit}>km</Text>
             </>
           ) : (
@@ -207,47 +221,45 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Pace + Duration row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
+            <Text style={styles.statValue} testID="duration-display">
               {isTracking ? formatDuration(displayDuration) : '00:00'}
             </Text>
             <Text style={styles.statLabel}>Duration</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
+            <Text style={styles.statValue} testID="pace-display">
               {isTracking && currentPace > 0 ? formatPace(currentPace) : '--:--'}
             </Text>
             <Text style={styles.statLabel}>min / km</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
+            <Text style={styles.statValue} testID="miles-display">
               {isTracking ? miles.toFixed(2) : '0.00'}
             </Text>
             <Text style={styles.statLabel}>miles</Text>
           </View>
         </View>
 
-        {/* Route points indicator */}
         {isTracking && currentRoute.length > 0 && (
           <View style={styles.routeIndicator}>
             <View style={styles.routeDot} />
-            <Text style={styles.routeText}>{currentRoute.length} GPS points recorded</Text>
+            <Text style={styles.routeText} testID="route-points">{currentRoute.length} GPS points recorded</Text>
           </View>
         )}
       </View>
 
       {/* Background badge */}
       {isBackgroundTracking && (
-        <View style={styles.backgroundBadge}>
+        <View style={styles.backgroundBadge} testID="background-badge">
           <Text style={styles.backgroundBadgeText}>● Background tracking ON</Text>
         </View>
       )}
 
-      {/* Empty state illustration */}
+      {/* Empty state */}
       {!isTracking && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyEmoji}>🏃‍♂️</Text>
@@ -260,15 +272,11 @@ export default function HomeScreen() {
 
       {/* Main CTA Button */}
       <View style={styles.buttonArea}>
-        {/* Glow effect behind button */}
         {isTracking && (
           <Animated.View
             style={[
               styles.buttonGlow,
-              {
-                opacity: glowOpacity,
-                transform: [{ scale: pulseAnim }],
-              },
+              { opacity: glowOpacity, transform: [{ scale: pulseAnim }] },
             ]}
           />
         )}
@@ -281,6 +289,7 @@ export default function HomeScreen() {
             ]}
             onPress={handleStartPress}
             activeOpacity={0.85}
+            testID={isTracking ? 'stop-button' : 'start-button'}
           >
             <Text style={styles.mainButtonText}>
               {isTracking ? '■ STOP' : '▶ START'}
@@ -289,11 +298,10 @@ export default function HomeScreen() {
         </Animated.View>
 
         {isTracking && (
-          <Text style={styles.tapHint}>Tap to finish and save workout</Text>
+          <Text style={styles.tapHint} testID="tap-hint">Tap to finish and save workout</Text>
         )}
       </View>
 
-      {/* Bottom safe area */}
       <View style={styles.bottomSafe} />
     </View>
   );

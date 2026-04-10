@@ -22,14 +22,84 @@ import { Workout } from '../../src/types';
 
 const { width } = Dimensions.get('window');
 
-// Simple ASCII-style route visualization
+// ─── Map Component (native only) ───────────────────────────────────────────
+function WorkoutMap({ route }: { route: { latitude: number; longitude: number }[] }) {
+  if (Platform.OS === 'web') {
+    return <RouteViz route={route} />;
+  }
+
+  // Dynamic require — only executed on native, Metro won't bundle this for web
+  const MapView = require('react-native-maps').MapView;
+  const Polyline = require('react-native-maps').Polyline;
+  const Marker = require('react-native-maps').Marker;
+
+  if (route.length === 0) {
+    return (
+      <View style={styles.mapFallback}>
+        <Text style={styles.mapFallbackText}>No GPS data recorded</Text>
+      </View>
+    );
+  }
+
+  const initialRegion = {
+    latitude: route[0].latitude,
+    longitude: route[0].longitude,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  };
+
+  return (
+    <View style={styles.mapContainer}>
+      <MapView
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        mapType="standard"
+        scrollEnabled={true}
+        zoomEnabled={true}
+      >
+        {route.length > 1 && (
+          <Polyline
+            coordinates={route}
+            strokeColor="#00D4AA"
+            strokeWidth={4}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+        {route.length > 0 && (
+          <>
+            <Marker
+              coordinate={route[0]}
+              title="Start"
+              pinColor="#00D4AA"
+            />
+            {route.length > 1 && (
+              <Marker
+                coordinate={route[route.length - 1]}
+                title="Finish"
+                pinColor="#FF4757"
+              />
+            )}
+          </>
+        )}
+      </MapView>
+
+      {/* Route badge */}
+      <View style={styles.mapBadge}>
+        <Text style={styles.mapBadgeText}>{route.length} GPS points</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Web fallback: visual route trace ───────────────────────────────────────
 function RouteViz({ route }: { route: { latitude: number; longitude: number }[] }) {
   if (route.length === 0) return null;
 
-  // Show start/end coordinates prominently
   const start = route[0];
   const end = route[route.length - 1];
-  const mid = route[Math.floor(route.length / 2)];
 
   return (
     <View style={styles.routeViz}>
@@ -38,39 +108,37 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
         <Text style={styles.routeVizCount}>{route.length} GPS points</Text>
       </View>
 
-      {/* Visual route line */}
       <View style={styles.routeLine}>
-        <View style={[styles.routePoint, styles.routePointStart]}>
+        <View style={styles.routePointStart}>
           <Text style={styles.routePointLabel}>START</Text>
           <Text style={styles.routePointCoords}>
-            {start.latitude.toFixed(4)}, {start.longitude.toFixed(4)}
+            {start.latitude.toFixed(5)}, {start.longitude.toFixed(5)}
           </Text>
         </View>
         <View style={styles.routeLineBar}>
           <View style={styles.routeLineFill} />
           <View style={styles.routeLineDot} />
         </View>
-        <View style={[styles.routePoint, styles.routePointEnd]}>
+        <View style={styles.routePointEnd}>
           <Text style={styles.routePointLabel}>FINISH</Text>
           <Text style={styles.routePointCoords}>
-            {end.latitude.toFixed(4)}, {end.longitude.toFixed(4)}
+            {end.latitude.toFixed(5)}, {end.longitude.toFixed(5)}
           </Text>
         </View>
       </View>
 
-      {/* Middle point */}
       {route.length > 2 && (
         <View style={styles.midPoint}>
           <Text style={styles.midPointLabel}>Mid point</Text>
           <Text style={styles.midPointCoords}>
-            {mid.latitude.toFixed(5)}, {mid.longitude.toFixed(5)}
+            {route[Math.floor(route.length / 2)].latitude.toFixed(5)},{' '}
+            {route[Math.floor(route.length / 2)].longitude.toFixed(5)}
           </Text>
         </View>
       )}
 
-      {/* All coordinates expandable */}
       <View style={styles.coordList}>
-        {route.slice(0, 20).map((pt, i) => (
+        {route.slice(0, 15).map((pt, i) => (
           <View key={i} style={styles.coordRow}>
             <Text style={styles.coordIndex}>#{i + 1}</Text>
             <Text style={styles.coordText}>
@@ -78,9 +146,9 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
             </Text>
           </View>
         ))}
-        {route.length > 20 && (
+        {route.length > 15 && (
           <Text style={styles.coordMore}>
-            ...and {route.length - 20} more coordinates
+            ...and {route.length - 15} more coordinates
           </Text>
         )}
       </View>
@@ -88,6 +156,7 @@ function RouteViz({ route }: { route: { latitude: number; longitude: number }[] 
   );
 }
 
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -95,8 +164,10 @@ export default function WorkoutDetailScreen() {
   const [workout, setWorkout] = useState<Workout | null>(null);
 
   useEffect(() => {
+    console.log('[FitTrack] WorkoutDetail: loading workout id =', id);
     if (id) {
       const found = getWorkoutById(id);
+      console.log('[FitTrack] WorkoutDetail: found =', found ? 'yes' : 'no');
       setWorkout(found);
     }
   }, [id, getWorkoutById]);
@@ -121,10 +192,14 @@ export default function WorkoutDetailScreen() {
   const miles = workout.distance / 1609.344;
 
   return (
-    <View style={styles.container}>
-      {/* Back button */}
+    <View style={styles.container} testID="workout-detail-screen">
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtnWrapper}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtnWrapper}
+          testID="back-button"
+        >
           <Text style={styles.backBtn}>← Back</Text>
         </TouchableOpacity>
       </View>
@@ -133,29 +208,36 @@ export default function WorkoutDetailScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        testID="workout-scroll"
       >
-        {/* Activity + Date */}
+        {/* Title block */}
         <View style={styles.titleBlock}>
           <View style={styles.titleRow}>
             <Text style={styles.activityIcon}>{workout.isRunning ? '🏃' : '🚶'}</Text>
             <View>
-              <Text style={styles.activityType}>
+              <Text style={styles.activityType} testID="workout-activity-type">
                 {workout.isRunning ? 'Running' : 'Walking'}
               </Text>
-              <Text style={styles.dateText}>{formatDateTime(workout.date)}</Text>
+              <Text style={styles.dateText} testID="workout-date">
+                {formatDateTime(workout.date)}
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Primary distance card */}
-        <View style={styles.primaryCard}>
+        <View style={styles.primaryCard} testID="distance-card">
           <View style={styles.primaryStat}>
-            <Text style={styles.primaryValue}>{km.toFixed(2)}</Text>
+            <Text style={styles.primaryValue} testID="distance-km">
+              {km.toFixed(2)}
+            </Text>
             <Text style={styles.primaryUnit}>kilometers</Text>
           </View>
           <View style={styles.primaryDivider} />
           <View style={styles.primaryStat}>
-            <Text style={styles.primaryValue}>{miles.toFixed(2)}</Text>
+            <Text style={styles.primaryValue} testID="distance-miles">
+              {miles.toFixed(2)}
+            </Text>
             <Text style={styles.primaryUnit}>miles</Text>
           </View>
         </View>
@@ -164,30 +246,38 @@ export default function WorkoutDetailScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statCardIcon}>⏱</Text>
-            <Text style={styles.statCardValue}>{formatDuration(workout.duration)}</Text>
+            <Text style={styles.statCardValue} testID="stat-duration">
+              {formatDuration(workout.duration)}
+            </Text>
             <Text style={styles.statCardLabel}>Duration</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statCardIcon}>⚡</Text>
-            <Text style={styles.statCardValue}>{formatPace(workout.avgPace)}</Text>
-            <Text style={styles.statCardLabel}>Avg Pace /km</Text>
+            <Text style={styles.statCardValue} testID="stat-pace">
+              {formatPace(workout.avgPace)}
+            </Text>
+            <Text style={styles.statCardLabel}>min / km</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statCardIcon}>🚀</Text>
-            <Text style={styles.statCardValue}>{formatSpeedMps(workout.avgSpeed)}</Text>
+            <Text style={styles.statCardValue} testID="stat-speed">
+              {formatSpeedMps(workout.avgSpeed)}
+            </Text>
             <Text style={styles.statCardLabel}>mph</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statCardIcon}>🔥</Text>
-            <Text style={styles.statCardValue}>{workout.calories || 0}</Text>
+            <Text style={styles.statCardValue} testID="stat-calories">
+              {workout.calories || 0}
+            </Text>
             <Text style={styles.statCardLabel}>Calories</Text>
           </View>
         </View>
 
-        {/* Route visualization */}
-        {route.length > 0 && <RouteViz route={route} />}
+        {/* Map or route viz */}
+        <WorkoutMap route={route} />
 
-        {/* Extra metrics */}
+        {/* Detailed metrics */}
         <View style={styles.metricsCard}>
           <Text style={styles.metricsTitle}>📊 Detailed Metrics</Text>
           <View style={styles.metricRow}>
@@ -212,6 +302,7 @@ export default function WorkoutDetailScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -325,6 +416,47 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  // Map
+  mapContainer: {
+    height: 260,
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 20,
+    backgroundColor: '#14141C',
+    borderWidth: 1,
+    borderColor: '#1E1E2C',
+  },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
+  mapBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  mapBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  mapFallback: {
+    height: 200,
+    backgroundColor: '#14141C',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  mapFallbackText: {
+    color: '#5A5A6E',
+    fontSize: 14,
+  },
+  // Route viz (web fallback)
   routeViz: {
     backgroundColor: '#14141C',
     borderRadius: 18,
@@ -357,13 +489,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  routePoint: {
-    flex: 1,
-  },
   routePointStart: {
+    flex: 1,
     alignItems: 'flex-start',
   },
   routePointEnd: {
+    flex: 1,
     alignItems: 'flex-end',
   },
   routePointLabel: {
@@ -445,6 +576,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  // Metrics
   metricsCard: {
     backgroundColor: '#14141C',
     borderRadius: 18,
