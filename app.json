@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "FitTrack",
+    "slug": "fittrack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#0D0D0D"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.fittrack.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FitTrack needs your location to track your workout route.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FitTrack needs background location to keep tracking your workout even when the screen is off.",
+        "NSLocationAlwaysUsageDescription": "FitTrack needs background location to keep tracking your workout even when the screen is off.",
+        "UIBackgroundModes": ["location", "fetch"]
+      }
+    },
+    "android": {
+      "package": "com.fittrack.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FitTrack to use your location to track your workouts.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fittrack-local"
+      }
+    }
+  }
+}
