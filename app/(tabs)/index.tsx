@@ -17,7 +17,6 @@ import {
   formatDuration,
   formatPace,
   formatDistanceMeters,
-  formatDistanceKm,
 } from '../../src/utils/formatters';
 
 type Activity = 'running' | 'walking';
@@ -43,7 +42,7 @@ export default function HomeScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
 
-  // Live duration ticker
+  // ─── Live duration ticker ───────────────────────────────────────────────
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (isTracking) {
@@ -82,6 +81,7 @@ export default function HomeScreen() {
       setDisplayDuration(0);
       pulseAnim.setValue(1);
       glowAnim.setValue(0);
+      Animated.loop && Animated.loop(null);
     }
 
     return () => {
@@ -89,31 +89,37 @@ export default function HomeScreen() {
     };
   }, [isTracking, currentDuration]);
 
+  // ─── Activity selection ─────────────────────────────────────────────────
   const handleActivitySelect = useCallback((a: Activity) => {
     console.log('[FitTrack] Activity selected:', a);
     if (!isTracking) setActivity(a);
   }, [isTracking]);
 
+  // ─── Main button press ─────────────────────────────────────────────────
   const handleStartPress = useCallback(async () => {
-    console.log('[FitTrack] Start press — isTracking:', isTracking, 'permission:', permissionStatus);
+    console.log('[FitTrack] Button pressed — isTracking:', isTracking, '| permission:', permissionStatus);
 
     if (isTracking) {
+      // ── STOP ──────────────────────────────────────────────────────────
       console.log('[FitTrack] Stopping workout...');
-      const workout = await stopWorkout(true);
+      const workout = await stopWorkout();
       if (workout) {
-        console.log('[FitTrack] Workout saved, id:', workout.id);
+        console.log('[FitTrack] Workout saved, navigating to detail:', workout.id);
         router.push(`/workout/${workout.id}`);
+      } else {
+        console.log('[FitTrack] stopWorkout returned null');
       }
       return;
     }
 
+    // ── START ───────────────────────────────────────────────────────────
     if (permissionStatus === 'undetermined') {
-      console.log('[FitTrack] Permission undetermined — showing explanation dialog');
+      console.log('[FitTrack] First time — showing explanation dialog');
       Alert.alert(
         '📍 Location Access Needed',
         'FitTrack needs your location to record your workout route. We\'ll also ask for background access to keep tracking when your screen is off.',
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => console.log('[FitTrack] Permission dialog: cancel') },
+          { text: 'Cancel', style: 'cancel', onPress: () => console.log('[FitTrack] Dialog: Cancel') },
           {
             text: 'Enable Location',
             onPress: async () => {
@@ -121,13 +127,16 @@ export default function HomeScreen() {
               const granted = await requestPermission();
               console.log('[FitTrack] Permission result:', granted);
               if (granted) {
-                await startWorkout();
-                console.log('[FitTrack] Workout started');
+                console.log('[FitTrack] Permission OK — starting workout as', activity);
+                await startWorkout(activity === 'running');
               } else {
                 Alert.alert(
                   '⚠️ Location Denied',
                   'Please enable location in your device settings to track workouts.',
-                  [{ text: 'OK', onPress: () => router.push('/(tabs)/settings') }]
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => Linking.openSettings() },
+                  ]
                 );
               }
             },
@@ -138,28 +147,22 @@ export default function HomeScreen() {
     }
 
     if (permissionStatus === 'denied') {
-      console.log('[FitTrack] Permission denied — showing open settings dialog');
+      console.log('[FitTrack] Permission previously denied — show open settings');
       Alert.alert(
         '🔒 Location Access Required',
         'FitTrack needs location access to track your workout. Please enable it in Settings.',
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => console.log('[FitTrack] Denied dialog: cancel') },
-          {
-            text: 'Open Settings',
-            onPress: () => {
-              console.log('[FitTrack] Opening system settings');
-              Linking.openSettings();
-            },
-          },
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]
       );
       return;
     }
 
-    // Permission granted — start immediately
-    console.log('[FitTrack] Permission already granted — starting workout');
-    await startWorkout();
-  }, [isTracking, permissionStatus, requestPermission, startWorkout, stopWorkout, router]);
+    // permissionStatus === 'granted' or 'limited' — start immediately
+    console.log('[FitTrack] Permission already granted — starting workout as', activity);
+    await startWorkout(activity === 'running');
+  }, [isTracking, permissionStatus, requestPermission, startWorkout, stopWorkout, router, activity]);
 
   const km = currentDistance / 1000;
   const miles = currentDistance / 1609.344;
@@ -177,7 +180,7 @@ export default function HomeScreen() {
         <Text style={styles.headerSubtitle}>Your personal running coach</Text>
       </View>
 
-      {/* Activity Selector */}
+      {/* Activity Selector — hidden while tracking */}
       {!isTracking && (
         <View style={styles.activitySelector}>
           <TouchableOpacity
@@ -209,16 +212,11 @@ export default function HomeScreen() {
       <View style={styles.statsCard} testID="stats-card">
         <View style={styles.mainStat}>
           {isTracking ? (
-            <>
-              <Text style={styles.mainStatValue} testID="distance-display">{km.toFixed(2)}</Text>
-              <Text style={styles.mainStatUnit}>km</Text>
-            </>
+            <Text style={styles.mainStatValue} testID="distance-display">{km.toFixed(2)}</Text>
           ) : (
-            <>
-              <Text style={styles.mainStatValue}>0.00</Text>
-              <Text style={styles.mainStatUnit}>km</Text>
-            </>
+            <Text style={styles.mainStatValue}>0.00</Text>
           )}
+          <Text style={styles.mainStatUnit}>km</Text>
         </View>
 
         <View style={styles.statsRow}>
@@ -274,10 +272,7 @@ export default function HomeScreen() {
       <View style={styles.buttonArea}>
         {isTracking && (
           <Animated.View
-            style={[
-              styles.buttonGlow,
-              { opacity: glowOpacity, transform: [{ scale: pulseAnim }] },
-            ]}
+            style={[styles.buttonGlow, { opacity: glowOpacity, transform: [{ scale: pulseAnim }] }]}
           />
         )}
 
@@ -285,7 +280,11 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              isTracking ? styles.stopButton : activity === 'running' ? styles.startButtonRun : styles.startButtonWalk,
+              isTracking
+                ? styles.stopButton
+                : activity === 'running'
+                ? styles.startButtonRun
+                : styles.startButtonWalk,
             ]}
             onPress={handleStartPress}
             activeOpacity={0.85}

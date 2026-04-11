@@ -33,8 +33,8 @@ interface WorkoutContextValue {
   currentDistance: number;
   currentDuration: number;
   currentPace: number;
-  startWorkout: () => Promise<void>;
-  stopWorkout: (isRunning: boolean) => Promise<Workout | null>;
+  startWorkout: (isRunning: boolean) => Promise<void>;
+  stopWorkout: () => Promise<Workout | null>;
   deleteWorkout: (id: string) => Promise<void>;
   getWorkoutById: (id: string) => Workout | undefined;
   isBackgroundTracking: boolean;
@@ -55,8 +55,10 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   const startTimeRef = useRef<number | null>(null);
   const routeRef = useRef<LatLng[]>([]);
   const lastLocationRef = useRef<Location.LocationObject | null>(null);
+  const distanceRef = useRef<number>(0);
+  const isRunningRef = useRef<boolean>(true);
 
-  // ─── Register background task ───────────────────────────────────────────────
+  // ─── Register background task ONCE on mount ───────────────────────────────
   useEffect(() => {
     console.log('[WorkoutContext] Registering background task:', LOCATION_TASK_NAME);
 
@@ -84,7 +86,8 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
             const dy = (newPoint.longitude - last.longitude) * (Math.PI / 180) * 6371000 *
               Math.cos(last.latitude * Math.PI / 180);
             const dist = Math.sqrt(dx * dx + dy * dy);
-            setCurrentDistance(prev => prev + dist);
+            distanceRef.current += dist;
+            setCurrentDistance(distanceRef.current);
           }
 
           lastLocationRef.current = location;
@@ -93,24 +96,15 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
           if (startTimeRef.current) {
             const elapsed = (Date.now() - startTimeRef.current) / 1000;
             setCurrentDuration(elapsed);
-            const pace = calculatePace(currentDistance, elapsed);
+            const pace = calculatePace(distanceRef.current, elapsed);
             setCurrentPace(pace);
           }
 
-          console.log('[WorkoutContext] Location update:', newPoint.latitude.toFixed(6), newPoint.longitude.toFixed(6), 'total pts:', routeRef.current.length);
+          console.log('[WorkoutContext] GPS pt:', routeRef.current.length, '|', newPoint.latitude.toFixed(6), newPoint.longitude.toFixed(6));
         }
       }
     });
-
-    return () => {
-      TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME).then((registered) => {
-        if (registered) {
-          console.log('[WorkoutContext] Unregistering background task');
-          TaskManager.unregisterTaskAsync(LOCATION_TASK_NAME);
-        }
-      });
-    };
-  }, [currentDistance]);
+  }, []); // register only once
 
   // ─── Load saved workouts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -131,10 +125,12 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ─── Start workout ─────────────────────────────────────────────────────────
-  const startWorkout = useCallback(async () => {
-    console.log('[WorkoutContext] startWorkout — resetting state and starting...');
+  const startWorkout = useCallback(async (isRunning: boolean) => {
+    console.log('[WorkoutContext] startWorkout — isRunning:', isRunning);
+    isRunningRef.current = isRunning;
     routeRef.current = [];
     lastLocationRef.current = null;
+    distanceRef.current = 0;
     startTimeRef.current = Date.now();
     setCurrentRoute([]);
     setCurrentDistance(0);
@@ -149,51 +145,53 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       isActive: true,
     });
 
-    console.log('[WorkoutContext] startWorkout — starting background tracking...');
+    console.log('[WorkoutContext] Starting background tracking...');
     await startBackgroundTracking();
     setIsBackgroundTracking(true);
-    console.log('[WorkoutContext] startWorkout — complete, tracking active');
+    console.log('[WorkoutContext] Background tracking active');
   }, []);
 
   // ─── Stop workout ──────────────────────────────────────────────────────────
-  const stopWorkout = useCallback(async (isRunning: boolean): Promise<Workout | null> => {
-    console.log('[WorkoutContext] stopWorkout — stopping and saving...');
+  const stopWorkout = useCallback(async (): Promise<Workout | null> => {
+    console.log('[WorkoutContext] stopWorkout called');
     if (!startTimeRef.current) {
       console.log('[WorkoutContext] stopWorkout — no start time, returning null');
       return null;
     }
 
     const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    console.log('[WorkoutContext] stopWorkout — duration:', duration, 'seconds');
+    const finalDistance = distanceRef.current;
+    const route = [...routeRef.current];
+    const wasRunning = isRunningRef.current;
 
+    console.log('[WorkoutContext] Stopping background tracking...');
     await stopBackgroundTracking();
     setIsBackgroundTracking(false);
 
-    const route = [...routeRef.current];
-    const distance = currentDistance;
-    const pace = calculatePace(distance, duration);
-    const speed = calculateSpeed(distance, duration);
-    const calories = estimateCalories(distance, duration, isRunning);
+    const pace = calculatePace(finalDistance, duration);
+    const speed = calculateSpeed(finalDistance, duration);
+    const calories = estimateCalories(finalDistance, duration, wasRunning);
 
     const workout: Workout = {
       id: uuidv4(),
       date: new Date().toISOString(),
       duration,
-      distance,
+      distance: finalDistance,
       route,
       avgPace: pace,
       avgSpeed: speed,
       calories,
-      isRunning,
+      isRunning: wasRunning,
     };
 
-    console.log('[WorkoutContext] stopWorkout — workout created, id:', workout.id, 'route pts:', route.length);
+    console.log('[WorkoutContext] Workout created:', workout.id, '| dur:', duration, 's | dist:', finalDistance.toFixed(0), 'm | pts:', route.length, '| type:', wasRunning ? 'running' : 'walking');
 
     const updated = [workout, ...workouts];
     setWorkouts(updated);
     await AsyncStorage.setItem(WORKOUTS_STORAGE_KEY, JSON.stringify(updated));
-    console.log('[WorkoutContext] stopWorkout — saved', updated.length, 'total workouts');
+    console.log('[WorkoutContext] Saved', updated.length, 'total workouts');
 
+    // Reset
     setIsTracking(false);
     setActiveWorkout(null);
     routeRef.current = [];
@@ -201,7 +199,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     startTimeRef.current = null;
 
     return workout;
-  }, [workouts, currentDistance]);
+  }, [workouts]);
 
   // ─── Delete workout ────────────────────────────────────────────────────────
   const deleteWorkout = useCallback(async (id: string) => {
@@ -209,7 +207,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     const updated = workouts.filter(w => w.id !== id);
     setWorkouts(updated);
     await AsyncStorage.setItem(WORKOUTS_STORAGE_KEY, JSON.stringify(updated));
-    console.log('[WorkoutContext] deleteWorkout — done,', updated.length, 'remaining');
+    console.log('[WorkoutContext] Deleted,', updated.length, 'remaining');
   }, [workouts]);
 
   // ─── Get by id ─────────────────────────────────────────────────────────────
