@@ -15,6 +15,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.fittrack.app",
       "infoPlist": {
+        "NSCameraUsageDescription": "FitTrack needs camera access to scan your food and estimate calories.",
+        "NSPhotoLibraryUsageDescription": "FitTrack needs photo library access to select food images for calorie analysis.",
         "NSLocationWhenInUseUsageDescription": "FitTrack needs your location to track your workout route in real-time.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "FitTrack needs background location access to keep tracking your workout when your screen is off.",
         "NSLocationAlwaysUsageDescription": "FitTrack needs background location to keep tracking your workout when your screen is off.",
@@ -24,6 +26,9 @@
     "android": {
       "package": "com.fittrack.app",
       "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
@@ -36,6 +41,13 @@
           "locationAlwaysAndWhenInUsePermission": "Allow FitTrack to use your location to track your workouts, even when the app is in the background.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow FitTrack to access your camera to scan food.",
+          "photosPermission": "Allow FitTrack to access your photos to select food images."
         }
       ]
     ],
